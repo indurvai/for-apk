@@ -1,0 +1,6 @@
+{
+  "name": "NotifyTrace",
+  "description": "365-day continuous notification history logger, real-time status bar listener, and deep payload inspector for Android.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

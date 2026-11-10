@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#020617" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NotifyTrace" />
+  <link id="pwaManifestLink" rel="manifest" href="data:application/manifest+json,{}" />
+  <title>NotifyTrace — Notification History &amp; Payload Inspector</title>
+  <link rel="stylesheet" href="tailwind.css" />
+  <script src="chart.umd.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="min-h-full bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white flex flex-col">
+
+  <!-- Top Navigation Bar -->
+  <header class="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center flex-wrap gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-white">NotifyTrace</h1>
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span id="liveIndicatorDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span id="liveIndicatorText">365-Day Continuous Log Active</span>
+            </span>
+            <span id="retentionSpanBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+              Retention: 365 Days Rolling
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Continuous 365-Day Rolling Notification Archive with Auto-Persistence &amp; Deep Payload Inspection</p>
+        </div>
+      </div>
+
+      <!-- Main View Switcher & Primary Actions -->
+      <div class="flex items-center flex-wrap gap-2">
+        <div class="inline-flex rounded-lg bg-slate-900 p-1 border border-slate-800">
+          <button id="tabBtnFeed" type="button" class="px-3 py-1.5 rounded-md text-xs font-medium transition bg-indigo-600 text-white shadow">
+            History &amp; Inspector
+          </button>
+          <button id="tabBtnAnalytics" type="button" class="px-3 py-1.5 rounded-md text-xs font-medium transition text-slate-400 hover:text-slate-200">
+            Analytics (<span id="analyticsCountBadge">0</span>)
+          </button>
+        </div>
+
+        <button id="btnToggleAutoStream" type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition" title="Toggle continuous background notification capture">
+          <span id="autoStreamDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span id="autoStreamBtnLabel">Continuous Capture: ON</span>
+        </button>
+
+        <button id="btnInstallPhone" type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-md shadow-indigo-500/20 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          Install to Phone
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-5">
+
+    <!-- KPI Summary Row -->
+    <section aria-label="Notification metrics summary" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Total Logged</span>
+          <span class="text-indigo-400 font-mono">ALL</span>
+        </div>
+        <p id="statTotal" class="text-2xl font-bold text-white mt-1">0</p>
+        <p id="statFilteredSub" class="text-[11px] text-slate-400 mt-0.5">Showing all records</p>
+      </div>
+
+      <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Unread / Active</span>
+          <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+        </div>
+        <p id="statUnread" class="text-2xl font-bold text-sky-400 mt-1">0</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Awaiting interaction</p>
+      </div>
+
+      <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>High / Urgent</span>
+          <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+        </div>
+        <p id="statHighPriority" class="text-2xl font-bold text-rose-400 mt-1">0</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Priority level &ge; High</p>
+      </div>
+
+      <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Actions Taken</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        </div>
+        <p id="statActioned" class="text-2xl font-bold text-emerald-400 mt-1">0</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Clicked or replied</p>
+      </div>
+
+      <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Dismissed / Auto</span>
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+        </div>
+        <p id="statDismissed" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Swiped or timed out</p>
+      </div>
+
+      <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Avg Latency</span>
+          <span class="text-violet-400 font-mono">FCM/OS</span>
+        </div>
+        <p id="statAvgLatency" class="text-2xl font-bold text-violet-300 mt-1">0 ms</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Push to shade render</p>
+      </div>
+    </section>
+
+    <!-- Filter & Search Bar -->
+    <section class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-4 space-y-3">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+        <!-- Search Input -->
+        <div class="md:col-span-3 relative">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input id="searchInput" type="text" placeholder="Search title, body, package, channel, ID, JSON..." class="w-full pl-9 pr-8 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" />
+          <button id="btnClearSearch" type="button" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs" title="Clear search">
+            &#10005;
+          </button>
+        </div>
+
+        <!-- App Filter -->
+        <div class="md:col-span-2">
+          <select id="filterApp" aria-label="Filter by Application" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+            <option value="ALL">All Applications</option>
+          </select>
+        </div>
+
+        <!-- Status Filter -->
+        <div class="md:col-span-2">
+          <select id="filterStatus" aria-label="Filter by Status" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+            <option value="ALL">All Statuses</option>
+            <option value="Unread">Unread (Active)</option>
+            <option value="Read">Read</option>
+            <option value="Action Taken">Action Taken</option>
+            <option value="Dismissed">Dismissed</option>
+            <option value="Snoozed">Snoozed</option>
+            <option value="Blocked">Blocked / Muted</option>
+          </select>
+        </div>
+
+        <!-- Priority Filter -->
+        <div class="md:col-span-2">
+          <select id="filterPriority" aria-label="Filter by Priority" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+            <option value="ALL">All Priorities</option>
+            <option value="Urgent">Urgent (Critical)</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium (Default)</option>
+            <option value="Low">Low (Silent)</option>
+          </select>
+        </div>
+
+        <!-- Timeframe Window (Up to 365 Days) -->
+        <div class="md:col-span-2">
+          <select id="filterTimeframe" aria-label="Filter by Timeframe Window" class="w-full px-3 py-2 bg-slate-950 border border-indigo-500/40 rounded-lg text-xs text-indigo-200 focus:outline-none focus:border-indigo-500">
+            <option value="365D" selected>Last 365 Days (Full Year)</option>
+            <option value="180D">Last 180 Days (6 Months)</option>
+            <option value="90D">Last 90 Days (Quarter)</option>
+            <option value="30D">Last 30 Days (Month)</option>
+            <option value="7D">Last 7 Days (Week)</option>
+            <option value="24H">Last 24 Hours (Today)</option>
+          </select>
+        </div>
+
+        <!-- Sort Order -->
+        <div class="md:col-span-1">
+          <select id="sortOrder" aria-label="Sort Notifications" class="w-full px-2.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+            <option value="NEWEST">Newest</option>
+            <option value="OLDEST">Oldest</option>
+            <option value="PRIORITY_DESC">Priority</option>
+            <option value="LATENCY_DESC">Latency</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 365-Day Rolling Retention Telemetry Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-950/90 border border-slate-800/80 text-[11px]">
+        <div class="flex items-center flex-wrap gap-3">
+          <span class="font-semibold text-indigo-300 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            365-Day Rolling History Policy:
+          </span>
+          <span id="retentionWindowRange" class="font-mono text-slate-300">Window: 365d rolling</span>
+          <span class="text-slate-600">|</span>
+          <span id="retentionOldestRecord" class="font-mono text-slate-400">Oldest log: --</span>
+        </div>
+        <div class="flex items-center flex-wrap gap-3">
+          <span id="retentionStorageUsage" class="font-mono text-emerald-400">Storage: 0 KB · 0 expired pruned</span>
+          <span id="lastHeartbeatLabel" class="font-mono text-slate-400">Last sync: Just now</span>
+        </div>
+      </div>
+
+      <!-- Quick Filter Pills & Bulk Toolbar -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
+        <div class="flex items-center flex-wrap gap-1.5">
+          <span class="text-[11px] text-slate-400 mr-1">Quick Filters:</span>
+          <button type="button" data-quick="ALL" class="quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-indigo-600 text-white transition">
+            All Logs
+          </button>
+          <button type="button" data-quick="UNREAD" class="quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+            Unread Only
+          </button>
+          <button type="button" data-quick="STARRED" class="quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+            &#9733; Starred / Pinned
+          </button>
+          <button type="button" data-quick="URGENT_HIGH" class="quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+            Urgent &amp; High
+          </button>
+          <button type="button" data-quick="HAS_ACTIONS" class="quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+            With Action Buttons
+          </button>
+        </div>
+
+        <div class="flex items-center flex-wrap gap-2">
+          <button id="btnMarkAllRead" type="button" class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition">
+            Mark All Read
+          </button>
+          <button id="btnClearDismissed" type="button" class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition">
+            Purge Dismissed
+          </button>
+          <button id="btnResetFilters" type="button" class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+            Reset Filters
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 1: Timeline Feed + Deep Detail Inspector -->
+    <section id="viewFeedSection" class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+      <!-- Left Column: Notification History List -->
+      <div class="lg:col-span-5 xl:col-span-5 rounded-xl bg-slate-900/90 border border-slate-800/80 overflow-hidden flex flex-col">
+        <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900">
+          <div class="flex items-center gap-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-300">Notification Stream</h2>
+            <span id="streamCountLabel" class="px-2 py-0.5 rounded-full text-[11px] font-mono bg-slate-800 text-slate-300">0 items</span>
+          </div>
+          <span class="text-[11px] text-slate-400">Click row to inspect</span>
+        </div>
+
+        <div id="notificationListContainer" class="divide-y divide-slate-800/70 max-h-[680px] overflow-y-auto">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- Right Column: Comprehensive Notification Detail Inspector -->
+      <div class="lg:col-span-7 xl:col-span-7 rounded-xl bg-slate-900/90 border border-slate-800/80 overflow-hidden flex flex-col lg:sticky lg:top-20">
+        <div id="inspectorEmptyState" class="hidden p-12 text-center space-y-3">
+          <div class="w-12 h-12 rounded-full bg-slate-800/80 mx-auto flex items-center justify-center text-slate-400">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 class="text-sm font-semibold text-slate-200">No Notification Selected</h3>
+          <p class="text-xs text-slate-400 max-w-sm mx-auto">Select any notification from the history stream on the left to inspect its complete metadata, lifecycle trace, and raw JSON payload.</p>
+        </div>
+
+        <div id="inspectorContent" class="flex flex-col">
+          <!-- Inspector Top Header -->
+          <div class="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/50 space-y-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="flex items-start gap-3.5">
+                <div id="inspAppIcon" class="w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold shrink-0 shadow-md">
+                  S
+                </div>
+                <div>
+                  <div class="flex items-center flex-wrap gap-2">
+                    <span id="inspAppName" class="text-sm font-bold text-white">Slack</span>
+                    <span id="inspPackageName" class="text-xs font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">com.Slack</span>
+                    <span id="inspPriorityBadge" class="px-2 py-0.5 rounded text-[11px] font-semibold">High</span>
+                    <span id="inspStatusBadge" class="px-2 py-0.5 rounded text-[11px] font-semibold">Unread</span>
+                  </div>
+                  <h2 id="inspTitle" class="text-base sm:text-lg font-semibold text-white mt-1.5 leading-snug">Notification Title</h2>
+                  <p id="inspSubtitle" class="text-xs text-slate-400 mt-0.5 font-mono"></p>
+                </div>
+              </div>
+
+              <!-- Quick Inspector Action Toolbar -->
+              <div class="flex items-center flex-wrap gap-1.5">
+                <button id="btnInspToggleStar" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1" title="Star or Pin notification">
+                  <span id="inspStarIcon">&#9734;</span>
+                  <span id="inspStarText">Star</span>
+                </button>
+                <button id="btnInspToggleRead" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition">
+                  Mark Read
+                </button>
+                <button id="btnInspSnooze" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition">
+                  Snooze 1h
+                </button>
+                <button id="btnInspReplay" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition">
+                  Replay Toast
+                </button>
+                <button id="btnInspDelete" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 transition">
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            <!-- Inspector Sub-Tabs -->
+            <div class="flex items-center gap-2 border-t border-slate-800/80 pt-3">
+              <button type="button" data-insptab="overview" class="insp-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition">
+                Overview &amp; Metadata
+              </button>
+              <button type="button" data-insptab="payload" class="insp-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 text-slate-300 hover:text-white transition">
+                Raw JSON Payload
+              </button>
+              <button type="button" data-insptab="lifecycle" class="insp-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 text-slate-300 hover:text-white transition">
+                Delivery &amp; Lifecycle Trace
+              </button>
+            </div>
+          </div>
+
+          <!-- Sub-Tab 1: Overview & Rich Metadata -->
+          <div id="inspTabOverview" class="p-4 sm:p-5 space-y-5">
+            <!-- Message Content Box -->
+            <div class="rounded-xl bg-slate-950 border border-slate-800/90 p-4 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Notification Content &amp; Expanded Text</span>
+                <button id="btnCopyMessageText" type="button" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium">
+                  Copy Text
+                </button>
+              </div>
+              <p id="inspBodyShort" class="text-sm text-slate-100 leading-relaxed"></p>
+              <div id="inspExpandedBox" class="pt-2 border-t border-slate-800/80">
+                <span class="text-[11px] text-slate-400 block mb-1">Expanded BigText / Subtext Detail:</span>
+                <p id="inspBodyExpanded" class="text-xs text-slate-300 leading-relaxed bg-slate-900/90 p-3 rounded-lg border border-slate-800/60 font-mono whitespace-pre-wrap"></p>
+              </div>
+            </div>
+
+            <!-- Interactive Notification Action Buttons (Simulated Shade Actions) -->
+            <div class="rounded-xl bg-slate-950 border border-slate-800/90 p-4 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Attached Notification Actions &amp; Deep Links</span>
+                <span id="inspLastActionNote" class="text-[11px] text-emerald-400 font-mono"></span>
+              </div>
+              <div id="inspActionsContainer" class="flex flex-wrap gap-2">
+                <!-- Populated dynamically -->
+              </div>
+              <div class="pt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 border-t border-slate-900">
+                <span>Target Deep Link / Intent URI:</span>
+                <code id="inspDeepLink" class="text-indigo-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 font-mono text-[11px]"></code>
+              </div>
+            </div>
+
+            <!-- Comprehensive Technical Metadata Grid -->
+            <div>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">Technical &amp; OS Channel Metadata</h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Notification ID</span>
+                  <span id="metaId" class="font-mono text-slate-100 font-medium mt-0.5 block truncate"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Channel ID &amp; Name</span>
+                  <span id="metaChannel" class="font-mono text-slate-100 font-medium mt-0.5 block truncate"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Category &amp; Group Key</span>
+                  <span id="metaGroup" class="font-mono text-slate-100 font-medium mt-0.5 block truncate"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Posted Timestamp (Local)</span>
+                  <span id="metaTimestamp" class="font-mono text-slate-100 font-medium mt-0.5 block"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Delivery Transport &amp; Latency</span>
+                  <span id="metaTransport" class="font-mono text-emerald-400 font-medium mt-0.5 block"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Device &amp; OS Build</span>
+                  <span id="metaDevice" class="font-mono text-slate-100 font-medium mt-0.5 block truncate"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Alert Behavior (Sound / Vibe)</span>
+                  <span id="metaAlertFlags" class="font-mono text-slate-100 font-medium mt-0.5 block truncate"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Visibility &amp; Lockscreen</span>
+                  <span id="metaVisibility" class="font-mono text-slate-100 font-medium mt-0.5 block truncate"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                  <span class="text-slate-400 block text-[11px]">Payload Size &amp; Push TTL</span>
+                  <span id="metaSizeTtl" class="font-mono text-slate-100 font-medium mt-0.5 block truncate"></span>
+                </div>
+                <div class="p-3 rounded-lg bg-slate-950 border border-indigo-500/30 sm:col-span-2 lg:col-span-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span class="text-indigo-300 block text-[11px] font-semibold">365-Day Archive Retention Status</span>
+                    <span id="metaRetentionCountdown" class="font-mono text-slate-200 font-medium mt-0.5 block"></span>
+                  </div>
+                  <span id="metaRetentionBadge" class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                    Protected in 365d Rolling Store
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sub-Tab 2: Raw JSON Payload -->
+          <div id="inspTabPayload" class="hidden p-4 sm:p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">Complete Raw Notification Payload (JSON)</h3>
+                <p class="text-[11px] text-slate-400">Includes push headers, Android/iOS notification extras, and custom data dictionary</p>
+              </div>
+              <button id="btnCopyJson" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition">
+                Copy JSON Payload
+              </button>
+            </div>
+            <pre id="inspJsonPre" class="rounded-xl bg-slate-950 border border-slate-800 p-4 text-xs font-mono text-emerald-300 overflow-x-auto max-h-[460px] leading-relaxed"></pre>
+          </div>
+
+          <!-- Sub-Tab 3: Delivery & Lifecycle Trace -->
+          <div id="inspTabLifecycle" class="hidden p-4 sm:p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">End-to-End Notification Lifecycle Audit</h3>
+                <p class="text-[11px] text-slate-400">Millisecond-level trace from push gateway arrival to shade rendering and user action</p>
+              </div>
+              <span id="inspTraceBadge" class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-300"></span>
+            </div>
+            <ol id="inspLifecycleList" class="relative border-l border-slate-800 ml-3 space-y-4 py-1">
+              <!-- Populated dynamically -->
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: Analytics & Channel Breakdown -->
+    <section id="viewAnalyticsSection" class="hidden space-y-5">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <!-- Chart 1: Notifications by Application & Priority -->
+        <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-white">Notification Volume by Application</h2>
+              <p class="text-xs text-slate-400">Distribution across logged sources in current view</p>
+            </div>
+          </div>
+          <div class="relative h-72">
+            <canvas id="chartByApp"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Status & Priority Distribution -->
+        <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-white">Resolution Status Breakdown</h2>
+              <p class="text-xs text-slate-400">Read, Unread, Action Taken, Dismissed, Snoozed &amp; Blocked</p>
+            </div>
+          </div>
+          <div class="relative h-72">
+            <canvas id="chartByStatus"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-Channel Summary Table -->
+      <div class="rounded-xl bg-slate-900/90 border border-slate-800/80 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-white">Application &amp; Channel Telemetry Breakdown</h3>
+            <p class="text-xs text-slate-400">Aggregated metrics per app source including average delivery latency and interaction rate</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 bg-slate-950/60 uppercase tracking-wider text-[11px]">
+                <th class="py-3 px-4">Application</th>
+                <th class="py-3 px-4">Package ID</th>
+                <th class="py-3 px-4 text-right">Total</th>
+                <th class="py-3 px-4 text-right">Unread</th>
+                <th class="py-3 px-4 text-right">High / Urgent</th>
+                <th class="py-3 px-4 text-right">Action Rate</th>
+                <th class="py-3 px-4 text-right">Avg Latency</th>
+              </tr>
+            </thead>
+            <tbody id="analyticsTableBody" class="divide-y divide-slate-800/70">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+
+  <!-- Modal: Install App to Phone (PWA & Standalone Mobile Installer) -->
+  <div id="installPhoneModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl">
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-white">Install NotifyTrace to Your Phone</h2>
+            <p class="text-xs text-slate-400">Progressive Web App (PWA) &amp; Standalone Offline Mobile Package</p>
+          </div>
+        </div>
+        <button id="btnCloseInstallModal" type="button" class="text-slate-400 hover:text-white text-sm px-2 py-1 rounded">
+          &#10005;
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+        <!-- Environment Status Banner -->
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-3">
+          <div class="space-y-0.5">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-indigo-400 block">PWA Manifest &amp; Home Screen Icon Ready</span>
+            <p id="pwaInstallStatusText" class="text-xs text-slate-300">Configured for fullscreen mobile launch with 365-day local storage persistence.</p>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            PWA Ready
+          </span>
+        </div>
+
+        <!-- Primary Action Buttons: Native Prompt or Standalone Mobile File -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button id="btnTriggerNativePwa" type="button" class="p-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-left transition flex items-start gap-3 shadow-lg shadow-indigo-600/20">
+            <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+            </svg>
+            <div>
+              <span class="block text-xs font-bold">1-Tap Browser Install</span>
+              <span class="block text-[11px] text-indigo-100 font-normal mt-0.5">Trigger native "Add to Home Screen" prompt if supported by browser</span>
+            </div>
+          </button>
+
+          <button id="btnDownloadMobileApp" type="button" class="p-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 font-semibold text-left transition flex items-start gap-3">
+            <svg class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <div>
+              <span class="block text-xs font-bold">Save Standalone Mobile App</span>
+              <span class="block text-[11px] text-slate-300 font-normal mt-0.5">Download <code class="font-mono text-emerald-300">NotifyTrace_Mobile.html</code> to open directly on your phone</span>
+            </div>
+          </button>
+        </div>
+
+        <!-- Platform Guide Switcher -->
+        <div class="space-y-3 pt-1">
+          <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+            <button type="button" data-plat="android" class="plat-guide-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition">
+              Android Setup
+            </button>
+            <button type="button" data-plat="ios" class="plat-guide-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition">
+              iPhone (iOS) Setup
+            </button>
+          </div>
+
+          <div id="guideAndroid" class="rounded-xl bg-slate-950 border border-slate-800 p-4 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
+              <div>
+                <h3 class="text-xs font-bold text-white">Native Android APK &amp; Real NotificationListenerService Bridge</h3>
+                <p class="text-[11px] text-slate-400">Browsers block websites and local <code class="font-mono">.html</code> files from reading other apps' notifications. Use the Native APK or import a phone dump below.</p>
+              </div>
+              <button id="btnOpenAndroidNotifSettings" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition">
+                Grant Android Notification Access
+              </button>
+            </div>
+
+            <ol class="list-decimal list-inside space-y-1.5 text-slate-300 leading-relaxed">
+              <li><strong class="text-white">Install the Native APK</strong>: Download <code class="font-mono text-indigo-300">NotifyTrace_Android_APK_Project.zip</code> from the chat card and build the APK (1-click via GitHub Actions or Android Studio).</li>
+              <li><strong class="text-white">Enable Notification Access</strong>: On your Android phone, open <strong class="text-emerald-300">Settings &rarr; Notifications &rarr; Notification access (Device &amp; app notifications)</strong> and toggle <strong class="text-white">NotifyTrace</strong> ON.</li>
+              <li><strong class="text-white">Automatic 365-Day Real History</strong>: The APK's background <code class="font-mono text-indigo-300">NotificationListenerService</code> intercepts every notification from WhatsApp, Gmail, System, Messenger, and all other installed apps—including their real app icons—and logs them here for 365 days.</li>
+            </ol>
+
+            <!-- Real Phone Notification Dump / Backup Importer -->
+            <div class="pt-3 border-t border-slate-800 space-y-2">
+              <label for="phoneDumpInput" class="block text-xs font-semibold text-indigo-300">
+                Import Real Phone Notification History (<code class="font-mono">adb shell dumpsys notification</code> or JSON Backup)
+              </label>
+              <textarea id="phoneDumpInput" rows="3" placeholder="Paste output from 'adb shell dumpsys notification --noredact' or a JSON array of notifications from your phone..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 font-mono focus:outline-none focus:border-indigo-500"></textarea>
+              <div class="flex items-center justify-end gap-2">
+                <button id="btnImportPhoneDump" type="button" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition">
+                  Parse &amp; Import Phone Notifications
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div id="guideIos" class="hidden rounded-xl bg-slate-950 border border-slate-800 p-4 space-y-2.5">
+            <h3 class="text-xs font-bold text-white">How to Install on iPhone (Safari)</h3>
+            <ol class="list-decimal list-inside space-y-1.5 text-slate-300 leading-relaxed">
+              <li>Open <strong class="text-white">NotifyTrace</strong> in <strong class="text-white">Safari</strong> on your iPhone.</li>
+              <li>Tap the <strong class="text-indigo-300">Share</strong> button at the bottom of the screen.</li>
+              <li>Scroll down and tap <strong class="text-emerald-300">Add to Home Screen</strong>, then tap <strong class="text-white">Add</strong>.</li>
+              <li>The custom NotifyTrace icon appears on your Home Screen and launches in standalone full-screen mode.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end pt-2 border-t border-slate-800">
+          <button id="btnDoneInstallModal" type="button" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Toast Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <script>
+    // Application Metadata Directory with Rich App Icons (SVG)
+    const APP_DIRECTORY = {
+      'Slack': {
+        pkg: 'com.Slack',
+        color: 'bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-700 text-white ring-1 ring-white/15',
+        icon: 'S',
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
+          <rect x="13" y="2" width="3.5" height="8" rx="1.75" fill="#2EB67D"/>
+          <rect x="17.5" y="6.5" width="4.5" height="3.5" rx="1.75" fill="#2EB67D"/>
+          <rect x="14" y="13" width="8" height="3.5" rx="1.75" fill="#ECB22E"/>
+          <rect x="14" y="17.5" width="3.5" height="4.5" rx="1.75" fill="#ECB22E"/>
+          <rect x="7.5" y="14" width="3.5" height="8" rx="1.75" fill="#E01E5A"/>
+          <rect x="2" y="14" width="4.5" height="3.5" rx="1.75" fill="#E01E5A"/>
+          <rect x="2" y="7.5" width="8" height="3.5" rx="1.75" fill="#36C5F0"/>
+          <rect x="6.5" y="2" width="3.5" height="4.5" rx="1.75" fill="#36C5F0"/>
+        </svg>`,
+        defaultChannel: 'channel_dm_urgent'
+      },
+      'GitHub': {
+        pkg: 'com.github.android',
+        color: 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-950 text-white ring-1 ring-white/15',
+        icon: 'GH',
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>`,
+        defaultChannel: 'ci_workflow_alerts'
+      },
+      'Stripe': {
+        pkg: 'com.stripe.dashboard',
+        color: 'bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 text-white ring-1 ring-white/15',
+        icon: 'ST',
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13.479 9.883c-1.626-.604-2.512-1.067-2.512-1.803 0-.622.511-.977 1.423-.977 1.667 0 3.379.644 4.558 1.222l.667-4.112C16.326 3.591 14.48 3 12.19 3 8.655 3 6.3 4.867 6.3 8.045c0 3.156 2.4 4.423 5.09 5.379 1.845.667 2.467 1.156 2.467 1.934 0 .755-.645 1.178-1.756 1.178-1.578 0-3.712-.756-5.135-1.556l-.689 4.156c1.423.822 3.69 1.464 5.957 1.464 3.734 0 6.135-1.822 6.135-5.112 0-3.267-2.423-4.579-4.89-5.605z"/>
+        </svg>`,
+        defaultChannel: 'webhook_payments'
+      },
+      'Gmail': {
+        pkg: 'com.google.android.gm',
+        color: 'bg-gradient-to-br from-rose-500 via-red-600 to-amber-600 text-white ring-1 ring-white/15',
+        icon: 'M',
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" stroke="currentColor" fill="rgba(255,255,255,0.08)"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.5 6.5L12 13l8.5-6.5"/>
+        </svg>`,
+        defaultChannel: 'mail_primary_inbox'
+      },
+      'Security Guard': {
+        pkg: 'com.auth.shield',
+        color: 'bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 text-slate-950 ring-1 ring-white/20',
+        icon: 'SG',
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7.5 3v5.5c0 4.8-3.2 8.9-7.5 10.2C7.7 20.4 4.5 16.3 4.5 11.5V6L12 3z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.2l2 2 4-4.2"/>
+        </svg>`,
+        defaultChannel: 'sec_2fa_challenges'
+      },
+      'System OS': {
+        pkg: 'android.system',
+        color: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 text-white ring-1 ring-white/15',
+        icon: 'OS',
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 3.5l1.3 2.2M16 3.5l-1.3 2.2M5.5 11C5.5 7.7 8.4 5 12 5s6.5 2.7 6.5 6v5.5a2 2 0 01-2 2h-9a2 2 0 01-2-2V11z"/>
+          <circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/>
+          <circle cx="14.5" cy="9.5" r="1" fill="currentColor" stroke="none"/>
+        </svg>`,
+        defaultChannel: 'sys_power_thermal'
+      },
+      'Calendar': {
+        pkg: 'com.google.android.calendar',
+        color: 'bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-600 text-white ring-1 ring-white/15',
+        icon: 'CA',
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/>
+          <path stroke-linecap="round" d="M8 2.5v4M16 2.5v4M3 9.5h18"/>
+          <rect x="7.5" y="13" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/>
+          <rect x="13.5" y="13" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/>
+        </svg>`,
+        defaultChannel: 'event_reminders_high'
+      },
+      'WhatsApp': {
+        pkg: 'com.whatsapp',
+        color: 'bg-gradient-to-br from-emerald-500 via-green-600 to-teal-700 text-white ring-1 ring-white/15',
+        icon: 'WA',
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.5 11.8a8.5 8.5 0 01-12.5 7.5L3.5 20.5l1.3-4.3A8.5 8.5 0 1120.5 11.8z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.2 8.8c.2-.4.5-.4.8-.4h.6c.2 0 .5.1.6.4l.7 1.6c.1.2.1.5-.1.7l-.5.6c.5.9 1.3 1.6 2.2 2.1l.6-.5c.2-.2.5-.2.7-.1l1.6.7c.3.1.4.4.4.6v.6c0 .3 0 .6-.4.8-.5.3-1.4.5-2.5.1-1.9-.6-3.9-2.4-4.7-4.4-.5-1.1-.3-2 .1-2.8z"/>
+        </svg>`,
+        defaultChannel: 'chat_direct_message'
+      }
+    };
+
+    function getAppIconMeta(appName, customIconBase64 = null) {
+      if (customIconBase64) {
+        return {
+          pkg: 'android.package',
+          color: 'bg-slate-900 ring-1 ring-white/15 overflow-hidden',
+          icon: String(appName || 'AP').slice(0, 2).toUpperCase(),
+          svg: `<img src="${customIconBase64}" alt="${escapeHtml(appName)}" class="w-full h-full object-cover rounded-xl" />`,
+          defaultChannel: 'android_os_channel'
+        };
+      }
+      if (APP_DIRECTORY[appName]) return APP_DIRECTORY[appName];
+      const initials = String(appName || 'AP').slice(0, 2).toUpperCase();
+      return {
+        pkg: 'com.custom.app',
+        color: 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white ring-1 ring-white/15',
+        icon: initials,
+        svg: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="4" y="4" width="16" height="16" rx="4"/>
+          <path stroke-linecap="round" d="M9 12h6M12 9v6"/>
+        </svg>`,
+        defaultChannel: 'custom_channel'
+      };
+    }
+
+    const PRIORITY_WEIGHT = {
+      'Urgent': 4,
+      'High': 3,
+      'Medium': 2,
+      'Low': 1
+    };
+
+
+    // Application State
+    let notifications = [];
+    let selectedId = null;
+    let activeMainTab = 'feed'; // 'feed' | 'analytics'
+    let activeInspectorTab = 'overview'; // 'overview' | 'payload' | 'lifecycle'
+    let quickFilterMode = 'ALL'; // 'ALL' | 'UNREAD' | 'STARRED' | 'URGENT_HIGH' | 'HAS_ACTIONS'
+
+    let chartByAppInstance = null;
+    let chartByStatusInstance = null;
+
+    const STORAGE_KEY = 'notifytrace_history_365d_v2';
+    const RETENTION_DAYS = 365;
+    const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    let totalExpiredPruned = 0;
+    let autoCaptureEnabled = true;
+    let autoCaptureIntervalId = null;
+    let retentionSweepIntervalId = null;
+    let liveStreamCounter = 1;
+
+    function enforce365DayRetention() {
+      const cutoff = Date.now() - RETENTION_MS;
+      const beforeCount = notifications.length;
+      notifications = notifications.filter(n => Number(n.timestamp) >= cutoff);
+      const prunedNow = beforeCount - notifications.length;
+      if (prunedNow > 0) {
+        totalExpiredPruned += prunedNow;
+      }
+      return prunedNow;
+    }
+
+    const NATIVE = !!window.AndroidBridge;
+    let nativeIcons = {};
+
+    function loadState() {
+      if (NATIVE) { notifications = []; selectedId = null; return; }
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            notifications = parsed;
+            enforce365DayRetention();
+            if (notifications.length > 0) {
+              selectedId = notifications[0].id;
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore storage errors in sandboxed iframe
+      }
+      notifications = [];
+      selectedId = null;
+    }
+
+    function saveState() {
+      enforce365DayRetention();
+      if (NATIVE) return; // the native file is the source of truth
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+      } catch (e) {
+        // Ignore storage errors in sandboxed iframe
+      }
+    }
+
+    function formatRelativeTime(ts) {
+      const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+      if (diffSec < 45) return 'Just now';
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}h ${diffMin % 60}m ago`;
+      const diffDays = Math.floor(diffHr / 24);
+      if (diffDays < 30) return `${diffDays}d ago`;
+      const diffMonths = Math.floor(diffDays / 30);
+      return `${diffDays}d (${diffMonths}mo) ago`;
+    }
+
+    function formatRetentionRemaining(ts) {
+      const expiresAt = ts + RETENTION_MS;
+      const remainingMs = Math.max(0, expiresAt - Date.now());
+      const remDays = Math.floor(remainingMs / (24 * 60 * 60 * 1000));
+      const remHours = Math.floor((remainingMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+      const expDate = new Date(expiresAt).toISOString().slice(0, 10);
+      return `${remDays}d ${remHours}h remaining in 365-day window · Auto-expires on ${expDate}`;
+    }
+
+    function formatExactTimestamp(ts) {
+      const d = new Date(ts);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mi = String(d.getMinutes()).padStart(2, '0');
+      const ss = String(d.getSeconds()).padStart(2, '0');
+      const ms = String(d.getMilliseconds()).padStart(3, '0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}.${ms}`;
+    }
+
+    function getPriorityBadgeClasses(priority) {
+      switch (priority) {
+        case 'Urgent':
+          return 'bg-rose-500/20 text-rose-300 border border-rose-500/40';
+        case 'High':
+          return 'bg-amber-500/20 text-amber-300 border border-amber-500/40';
+        case 'Medium':
+          return 'bg-sky-500/20 text-sky-300 border border-sky-500/40';
+        default:
+          return 'bg-slate-800 text-slate-300 border border-slate-700';
+      }
+    }
+
+    function getStatusBadgeClasses(status) {
+      switch (status) {
+        case 'Unread':
+          return 'bg-sky-500/20 text-sky-300 border border-sky-500/40';
+        case 'Action Taken':
+          return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        case 'Read':
+          return 'bg-slate-800 text-slate-300 border border-slate-700';
+        case 'Snoozed':
+          return 'bg-violet-500/20 text-violet-300 border border-violet-500/40';
+        case 'Dismissed':
+          return 'bg-amber-500/15 text-amber-300 border border-amber-500/30';
+        case 'Blocked':
+          return 'bg-rose-500/15 text-rose-300 border border-rose-500/30';
+        default:
+          return 'bg-slate-800 text-slate-300';
+      }
+    }
+
+    function showToast(title, subtitle, accentClass = 'border-indigo-500', appName = null) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const matchedApp = appName || Object.keys(APP_DIRECTORY).find(a => title.startsWith(`[${a}]`));
+      const iconMeta = matchedApp ? getAppIconMeta(matchedApp) : null;
+      toast.className = `pointer-events-auto rounded-xl bg-slate-900/95 border-l-4 ${accentClass} border border-slate-800 p-3.5 shadow-xl transition transform duration-200 flex items-start justify-between gap-3`;
+      toast.innerHTML = `
+        <div class="flex items-start gap-2.5 min-w-0">
+          ${iconMeta ? `<div class="w-8 h-8 rounded-lg ${iconMeta.color} flex items-center justify-center shrink-0 mt-0.5 shadow">${iconMeta.svg}</div>` : ''}
+          <div class="min-w-0">
+            <p class="text-xs font-semibold text-white truncate">${escapeHtml(title)}</p>
+            <p class="text-[11px] text-slate-300 mt-0.5 line-clamp-2">${escapeHtml(subtitle)}</p>
+          </div>
+        </div>
+        <button type="button" class="text-slate-400 hover:text-white text-xs shrink-0">&#10005;</button>
+      `;
+      const closeBtn = toast.querySelector('button');
+      closeBtn.addEventListener('click', () => toast.remove());
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+      }, 3800);
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function copyTextToClipboard(text, label) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('Copied to Clipboard', `${label} copied (${text.length} chars).`, 'border-emerald-500');
+        }).catch(() => fallbackCopy(text, label));
+      } else {
+        fallbackCopy(text, label);
+      }
+    }
+
+    function fallbackCopy(text, label) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast('Copied to Clipboard', `${label} copied (${text.length} chars).`, 'border-emerald-500');
+      } catch (err) {
+        showToast('Copy Failed', 'Could not access clipboard in this environment.', 'border-rose-500');
+      }
+      document.body.removeChild(ta);
+    }
+
+    function populateAppFilterOptions() {
+      const select = document.getElementById('filterApp');
+      const currentVal = select.value || 'ALL';
+      const apps = Array.from(new Set([
+        ...Object.keys(APP_DIRECTORY),
+        ...notifications.map(n => n.app)
+      ])).sort();
+
+      select.innerHTML = '<option value="ALL">All Applications</option>';
+      apps.forEach(app => {
+        const count = notifications.filter(n => n.app === app).length;
+        const opt = document.createElement('option');
+        opt.value = app;
+        opt.textContent = `${app} (${count})`;
+        select.appendChild(opt);
+      });
+      if ([...select.options].some(o => o.value === currentVal)) {
+        select.value = currentVal;
+      }
+    }
+
+    function getFilteredNotifications() {
+      const query = document.getElementById('searchInput').value.trim().toLowerCase();
+      const appFilter = document.getElementById('filterApp').value;
+      const statusFilter = document.getElementById('filterStatus').value;
+      const priorityFilter = document.getElementById('filterPriority').value;
+      const timeframeFilter = document.getElementById('filterTimeframe') ? document.getElementById('filterTimeframe').value : '365D';
+      const sortOrder = document.getElementById('sortOrder').value;
+      const nowMs = Date.now();
+      const TIMEFRAME_WINDOWS = {
+        '24H': 24 * 60 * 60 * 1000,
+        '7D': 7 * 24 * 60 * 60 * 1000,
+        '30D': 30 * 24 * 60 * 60 * 1000,
+        '90D': 90 * 24 * 60 * 60 * 1000,
+        '180D': 180 * 24 * 60 * 60 * 1000,
+        '365D': RETENTION_MS
+      };
+      const maxAgeMs = TIMEFRAME_WINDOWS[timeframeFilter] || RETENTION_MS;
+
+      const clearBtn = document.getElementById('btnClearSearch');
+      if (query.length > 0) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+
+      const filtered = notifications.filter(item => {
+        if (nowMs - Number(item.timestamp) > maxAgeMs) return false;
+        if (appFilter !== 'ALL' && item.app !== appFilter) return false;
+        if (statusFilter !== 'ALL' && item.status !== statusFilter) return false;
+        if (priorityFilter !== 'ALL' && item.priority !== priorityFilter) return false;
+
+        if (quickFilterMode === 'UNREAD' && item.status !== 'Unread') return false;
+        if (quickFilterMode === 'STARRED' && !item.starred) return false;
+        if (quickFilterMode === 'URGENT_HIGH' && item.priority !== 'Urgent' && item.priority !== 'High') return false;
+        if (quickFilterMode === 'HAS_ACTIONS' && (!item.actions || item.actions.length === 0)) return false;
+
+        if (query) {
+          const haystack = [
+            item.id,
+            item.app,
+            item.packageName,
+            item.channelId,
+            item.channelName,
+            item.category,
+            item.title,
+            item.subtitle,
+            item.body,
+            item.expandedText,
+            item.deepLink,
+            (item.actions || []).join(' ')
+          ].join(' ').toLowerCase();
+          if (!haystack.includes(query)) return false;
+        }
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        if (sortOrder === 'OLDEST') return a.timestamp - b.timestamp;
+        if (sortOrder === 'PRIORITY_DESC') {
+          const diff = (PRIORITY_WEIGHT[b.priority] || 0) - (PRIORITY_WEIGHT[a.priority] || 0);
+          return diff !== 0 ? diff : b.timestamp - a.timestamp;
+        }
+        if (sortOrder === 'LATENCY_DESC') return b.latencyMs - a.latencyMs;
+        return b.timestamp - a.timestamp;
+      });
+
+      return filtered;
+    }
+
+    function buildRawPayloadObject(n) {
+      return {
+        notification_id: n.id,
+        posted_at_iso: new Date(n.timestamp).toISOString(),
+        posted_at_epoch_ms: n.timestamp,
+        source: {
+          application_name: n.app,
+          package_name: n.packageName,
+          channel_id: n.channelId,
+          channel_label: n.channelName,
+          category: n.category,
+          group_key: n.groupKey
+        },
+        delivery_telemetry: {
+          priority: n.priority,
+          current_status: n.status,
+          starred: Boolean(n.starred),
+          transport_latency_ms: n.latencyMs,
+          payload_size_bytes: n.payloadBytes,
+          ttl_seconds: n.ttlSeconds,
+          device_fingerprint: n.device
+        },
+        retention_policy: {
+          mode: 'CONTINUOUS_365_DAY_ROLLING',
+          retention_days: 365,
+          expires_at_iso: new Date(n.timestamp + RETENTION_MS).toISOString(),
+          days_remaining: Math.max(0, Math.floor((n.timestamp + RETENTION_MS - Date.now()) / (24 * 60 * 60 * 1000)))
+        },
+        alert_configuration: {
+          sound_uri: n.sound,
+          vibration_pattern: n.vibration,
+          lockscreen_visibility: n.visibility
+        },
+        content: {
+          title: n.title,
+          subtitle: n.subtitle,
+          short_body: n.body,
+          expanded_big_text: n.expandedText,
+          content_intent_uri: n.deepLink,
+          action_buttons: n.actions || [],
+          last_recorded_interaction: n.lastUserAction || null
+        },
+        lifecycle_trace: n.lifecycle || []
+      };
+    }
+
+    function renderAll() {
+      populateAppFilterOptions();
+      const filtered = getFilteredNotifications();
+
+      // Update KPI Stats
+      const total = notifications.length;
+      const unread = notifications.filter(n => n.status === 'Unread').length;
+      const highUrgent = notifications.filter(n => n.priority === 'Urgent' || n.priority === 'High').length;
+      const actioned = notifications.filter(n => n.status === 'Action Taken').length;
+      const dismissed = notifications.filter(n => n.status === 'Dismissed').length;
+      const avgLat = total > 0
+        ? Math.round(notifications.reduce((acc, n) => acc + (Number(n.latencyMs) || 0), 0) / total)
+        : 0;
+
+      document.getElementById('statTotal').textContent = String(total);
+      document.getElementById('statFilteredSub').textContent =
+        filtered.length === total
+          ? `Showing all ${total} records`
+          : `Filtered: ${filtered.length} of ${total} records`;
+      document.getElementById('statUnread').textContent = String(unread);
+      document.getElementById('statHighPriority').textContent = String(highUrgent);
+      document.getElementById('statActioned').textContent = String(actioned);
+      document.getElementById('statDismissed').textContent = String(dismissed);
+      document.getElementById('statAvgLatency').textContent = `${avgLat} ms`;
+      document.getElementById('analyticsCountBadge').textContent = String(filtered.length);
+      document.getElementById('streamCountLabel').textContent = `${filtered.length} ${filtered.length === 1 ? 'item' : 'items'}`;
+
+      // Update 365-Day Rolling Retention Telemetry Bar
+      const nowDate = new Date();
+      const cutoffDate = new Date(Date.now() - RETENTION_MS);
+      const winEl = document.getElementById('retentionWindowRange');
+      if (winEl) {
+        winEl.textContent = `Active Window: ${cutoffDate.toISOString().slice(0, 10)} → ${nowDate.toISOString().slice(0, 10)} (365d)`;
+      }
+      const oldestEl = document.getElementById('retentionOldestRecord');
+      if (oldestEl) {
+        if (notifications.length > 0) {
+          const oldestTs = Math.min(...notifications.map(n => Number(n.timestamp)));
+          const ageDays = Math.floor((Date.now() - oldestTs) / (24 * 60 * 60 * 1000));
+          oldestEl.textContent = `Oldest entry: ${new Date(oldestTs).toISOString().slice(0, 10)} (${ageDays}d ago)`;
+        } else {
+          oldestEl.textContent = 'Oldest entry: none';
+        }
+      }
+      const storageEl = document.getElementById('retentionStorageUsage');
+      if (storageEl) {
+        const approxKb = Math.max(1, Math.round(JSON.stringify(notifications).length / 1024));
+        storageEl.textContent = `Archive Size: ${approxKb} KB (${notifications.length} logs) · ${totalExpiredPruned} >365d pruned`;
+      }
+
+      // Ensure a valid selected notification if filtered list is non-empty
+      if (filtered.length > 0 && !filtered.some(n => n.id === selectedId)) {
+        selectedId = filtered[0].id;
+      } else if (filtered.length === 0) {
+        selectedId = null;
+      }
+
+      renderStreamList(filtered);
+      renderInspector();
+      if (activeMainTab === 'analytics') {
+        renderAnalytics(filtered);
+      }
+    }
+
+    function renderStreamList(filtered) {
+      const container = document.getElementById('notificationListContainer');
+      container.innerHTML = '';
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="p-10 text-center space-y-2">
+            <p class="text-sm font-medium text-slate-300">No matching notifications in history</p>
+            <p class="text-xs text-slate-400">Try clearing your search query or resetting the active filters.</p>
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const isSelected = item.id === selectedId;
+        const appMeta = getAppIconMeta(item.app, item.appIconBase64);
+
+        const row = document.createElement('div');
+        row.className = `p-3.5 sm:p-4 cursor-pointer transition flex items-start gap-3 ${
+          isSelected
+            ? 'bg-indigo-950/50 border-l-4 border-l-indigo-500'
+            : 'hover:bg-slate-800/50'
+        }`;
+
+        row.innerHTML = `
+          <div class="relative w-10 h-10 rounded-xl ${appMeta.color} flex items-center justify-center shrink-0 mt-0.5 shadow-md" title="${escapeHtml(item.app)} (${escapeHtml(item.packageName)})">
+            ${appMeta.svg}
+            ${item.status === 'Unread' ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-sky-400 ring-2 ring-slate-900"></span>' : ''}
+          </div>
+          <div class="min-w-0 flex-1 space-y-1">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-1.5 min-w-0">
+                ${item.status === 'Unread' ? '<span class="w-2 h-2 rounded-full bg-sky-400 shrink-0" title="Unread"></span>' : ''}
+                <span class="text-xs font-semibold text-white truncate">${escapeHtml(item.app)}</span>
+                <span class="text-[11px] font-mono text-slate-400 truncate hidden sm:inline">· ${escapeHtml(item.channelId)}</span>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                ${item.starred ? '<span class="text-amber-400 text-xs" title="Starred">&#9733;</span>' : ''}
+                <span class="text-[11px] font-mono text-slate-400">${escapeHtml(formatRelativeTime(item.timestamp))}</span>
+              </div>
+            </div>
+
+            <p class="text-xs font-semibold ${item.status === 'Unread' ? 'text-white' : 'text-slate-200'} line-clamp-1">
+              ${escapeHtml(item.title)}
+            </p>
+
+            <p class="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+              ${escapeHtml(item.body)}
+            </p>
+
+            <div class="flex items-center flex-wrap gap-1.5 pt-1">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-medium ${getPriorityBadgeClasses(item.priority)}">
+                ${escapeHtml(item.priority)}
+              </span>
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-medium ${getStatusBadgeClasses(item.status)}">
+                ${escapeHtml(item.status)}
+              </span>
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-950 text-slate-400 border border-slate-800">
+                ${item.latencyMs}ms
+              </span>
+              ${
+                item.actions && item.actions.length > 0
+                  ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${item.actions.length} actions</span>`
+                  : ''
+              }
+            </div>
+          </div>
+        `;
+
+        row.addEventListener('click', () => {
+          selectedId = item.id;
+          renderAll();
+        });
+
+        container.appendChild(row);
+      });
+    }
+
+    function renderInspector() {
+      const emptyEl = document.getElementById('inspectorEmptyState');
+      const contentEl = document.getElementById('inspectorContent');
+      const item = notifications.find(n => n.id === selectedId);
+
+      if (!item) {
+        emptyEl.classList.remove('hidden');
+        contentEl.classList.add('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      contentEl.classList.remove('hidden');
+
+      const appMeta = getAppIconMeta(item.app, item.appIconBase64);
+
+      const iconEl = document.getElementById('inspAppIcon');
+      iconEl.className = `w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${appMeta.color}`;
+      iconEl.innerHTML = appMeta.svg;
+
+      document.getElementById('inspAppName').textContent = item.app;
+      document.getElementById('inspPackageName').textContent = item.packageName;
+
+      const priBadge = document.getElementById('inspPriorityBadge');
+      priBadge.className = `px-2 py-0.5 rounded text-[11px] font-semibold ${getPriorityBadgeClasses(item.priority)}`;
+      priBadge.textContent = `${item.priority} Priority`;
+
+      const statusBadge = document.getElementById('inspStatusBadge');
+      statusBadge.className = `px-2 py-0.5 rounded text-[11px] font-semibold ${getStatusBadgeClasses(item.status)}`;
+      statusBadge.textContent = item.status;
+
+      document.getElementById('inspTitle').textContent = item.title;
+      document.getElementById('inspSubtitle').textContent = `${item.subtitle} · Logged ${formatExactTimestamp(item.timestamp)} (${formatRelativeTime(item.timestamp)})`;
+
+      // Star & Read toggle labels
+      document.getElementById('inspStarIcon').innerHTML = item.starred ? '&#9733;' : '&#9734;';
+      document.getElementById('inspStarIcon').className = item.starred ? 'text-amber-400' : 'text-slate-400';
+      document.getElementById('inspStarText').textContent = item.starred ? 'Starred' : 'Star';
+      document.getElementById('btnInspToggleRead').textContent = item.status === 'Unread' ? 'Mark Read' : 'Mark Unread';
+
+      // Overview Content
+      document.getElementById('inspBodyShort').textContent = item.body;
+      document.getElementById('inspBodyExpanded').textContent = item.expandedText || 'No expanded BigText payload attached.';
+      document.getElementById('inspDeepLink').textContent = item.deepLink || 'none';
+      document.getElementById('inspLastActionNote').textContent = item.lastUserAction ? `Last: ${item.lastUserAction}` : 'No action clicked yet';
+
+      // Render Interactive Shade Action Buttons
+      const actionsBox = document.getElementById('inspActionsContainer');
+      actionsBox.innerHTML = '';
+      if (item.actions && item.actions.length > 0) {
+        item.actions.forEach(actLabel => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/35 text-indigo-200 border border-indigo-500/30 transition flex items-center gap-1.5';
+          btn.innerHTML = `<span>&#9656;</span><span>${escapeHtml(actLabel)}</span>`;
+          btn.addEventListener('click', () => {
+            item.status = 'Action Taken';
+            item.lastUserAction = `Executed "${actLabel}" at ${formatExactTimestamp(Date.now()).slice(11, 19)}`;
+            item.lifecycle = item.lifecycle || [];
+            item.lifecycle.push({
+              step: `User Triggered Action "${actLabel}"`,
+              offsetMs: Math.max(100, Date.now() - item.timestamp),
+              detail: `Dispatched PendingIntent -> ${item.deepLink}`
+            });
+            saveState();
+            renderAll();
+            showToast(`Action Executed: ${actLabel}`, `Notification ${item.id} marked as Action Taken.`, 'border-emerald-500');
+          });
+          actionsBox.appendChild(btn);
+        });
+      } else {
+        actionsBox.innerHTML = '<span class="text-xs text-slate-500">No interactive PendingIntent buttons attached to this notification.</span>';
+      }
+
+      // Technical Metadata Grid
+      document.getElementById('metaId').textContent = item.id;
+      document.getElementById('metaChannel').textContent = `${item.channelId} (${item.channelName})`;
+      document.getElementById('metaGroup').textContent = `${item.category} · ${item.groupKey}`;
+      document.getElementById('metaTimestamp').textContent = formatExactTimestamp(item.timestamp);
+      document.getElementById('metaTransport').textContent = `FCM / System · ${item.latencyMs} ms latency`;
+      document.getElementById('metaDevice').textContent = item.device;
+      document.getElementById('metaAlertFlags').textContent = `Sound: ${item.sound} | Vibe: ${item.vibration}`;
+      document.getElementById('metaVisibility').textContent = item.visibility;
+      document.getElementById('metaSizeTtl').textContent = `${item.payloadBytes} B · TTL ${item.ttlSeconds}s`;
+      const retEl = document.getElementById('metaRetentionCountdown');
+      if (retEl) {
+        retEl.textContent = formatRetentionRemaining(item.timestamp);
+      }
+
+      // Raw JSON Tab
+      const payloadObj = buildRawPayloadObject(item);
+      document.getElementById('inspJsonPre').textContent = JSON.stringify(payloadObj, null, 2);
+
+      // Lifecycle Trace Tab
+      const traceSteps = item.lifecycle || [];
+      document.getElementById('inspTraceBadge').textContent = `${traceSteps.length} lifecycle events`;
+      const listEl = document.getElementById('inspLifecycleList');
+      listEl.innerHTML = '';
+      traceSteps.forEach((ev, idx) => {
+        const li = document.createElement('li');
+        li.className = 'ml-4';
+        const isLast = idx === traceSteps.length - 1;
+        li.innerHTML = `
+          <div class="absolute w-2.5 h-2.5 rounded-full ${isLast ? 'bg-emerald-400 ring-4 ring-emerald-500/20' : 'bg-indigo-500'} -left-[5.5px] mt-1.5"></div>
+          <div class="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-semibold text-white">${escapeHtml(ev.step)}</span>
+              <span class="text-[11px] font-mono text-indigo-400">+${ev.offsetMs} ms</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-1 font-mono">${escapeHtml(ev.detail)}</p>
+          </div>
+        `;
+        listEl.appendChild(li);
+      });
+    }
+
+    function renderAnalytics(filtered) {
+      // Aggregate by App
+      const appMap = {};
+      filtered.forEach(n => {
+        if (!appMap[n.app]) {
+          appMap[n.app] = {
+            app: n.app,
+            pkg: n.packageName,
+            total: 0,
+            unread: 0,
+            highUrgent: 0,
+            actioned: 0,
+            latencySum: 0
+          };
+        }
+        const entry = appMap[n.app];
+        entry.total += 1;
+        if (n.status === 'Unread') entry.unread += 1;
+        if (n.priority === 'Urgent' || n.priority === 'High') entry.highUrgent += 1;
+        if (n.status === 'Action Taken') entry.actioned += 1;
+        entry.latencySum += Number(n.latencyMs) || 0;
+      });
+
+      const appRows = Object.values(appMap).sort((a, b) => b.total - a.total);
+
+      // Render Table
+      const tbody = document.getElementById('analyticsTableBody');
+      tbody.innerHTML = '';
+      if (appRows.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="py-6 text-center text-slate-400">No notification data matching current filters.</td>
+          </tr>
+        `;
+      } else {
+        appRows.forEach(r => {
+          const actionRate = r.total > 0 ? Math.round((r.actioned / r.total) * 100) : 0;
+          const avgLat = r.total > 0 ? Math.round(r.latencySum / r.total) : 0;
+          const appMeta = getAppIconMeta(r.app);
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-800/40 transition';
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-semibold text-white">
+              <div class="flex items-center gap-2.5">
+                <span class="w-7 h-7 rounded-lg ${appMeta.color} inline-flex items-center justify-center shadow shrink-0">${appMeta.svg}</span>
+                <span>${escapeHtml(r.app)}</span>
+              </div>
+            </td>
+            <td class="py-3 px-4 font-mono text-slate-400">${escapeHtml(r.pkg)}</td>
+            <td class="py-3 px-4 text-right font-mono text-slate-200">${r.total}</td>
+            <td class="py-3 px-4 text-right font-mono text-sky-400">${r.unread}</td>
+            <td class="py-3 px-4 text-right font-mono text-rose-400">${r.highUrgent}</td>
+            <td class="py-3 px-4 text-right font-mono text-emerald-400">${actionRate}%</td>
+            <td class="py-3 px-4 text-right font-mono text-violet-300">${avgLat} ms</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      // Update Chart 1: Volume by Application
+      const ctxApp = document.getElementById('chartByApp').getContext('2d');
+      if (chartByAppInstance) chartByAppInstance.destroy();
+      chartByAppInstance = new Chart(ctxApp, {
+        type: 'bar',
+        data: {
+          labels: appRows.map(r => r.app),
+          datasets: [
+            {
+              label: 'Total Notifications',
+              data: appRows.map(r => r.total),
+              backgroundColor: 'rgba(99, 102, 241, 0.75)',
+              borderColor: 'rgb(99, 102, 241)',
+              borderWidth: 1,
+              borderRadius: 6
+            },
+            {
+              label: 'High / Urgent',
+              data: appRows.map(r => r.highUrgent),
+              backgroundColor: 'rgba(244, 63, 94, 0.75)',
+              borderColor: 'rgb(244, 63, 94)',
+              borderWidth: 1,
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#cbd5e1', font: { family: 'Inter', size: 11 } }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: '#94a3b8', font: { family: 'Inter', size: 11 } },
+              grid: { color: 'rgba(51, 65, 85, 0.3)' }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1, color: '#94a3b8', font: { family: 'Inter', size: 11 } },
+              grid: { color: 'rgba(51, 65, 85, 0.3)' }
+            }
+          }
+        }
+      });
+
+      // Update Chart 2: Resolution Status Breakdown
+      const statusCounts = {
+        'Unread': 0,
+        'Read': 0,
+        'Action Taken': 0,
+        'Dismissed': 0,
+        'Snoozed': 0,
+        'Blocked': 0
+      };
+      filtered.forEach(n => {
+        statusCounts[n.status] = (statusCounts[n.status] || 0) + 1;
+      });
+
+      const ctxStatus = document.getElementById('chartByStatus').getContext('2d');
+      if (chartByStatusInstance) chartByStatusInstance.destroy();
+      chartByStatusInstance = new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(statusCounts),
+          datasets: [
+            {
+              data: Object.values(statusCounts),
+              backgroundColor: [
+                'rgba(56, 189, 248, 0.85)',
+                'rgba(148, 163, 184, 0.75)',
+                'rgba(52, 211, 153, 0.85)',
+                'rgba(251, 191, 36, 0.85)',
+                'rgba(167, 139, 250, 0.85)',
+                'rgba(244, 63, 94, 0.85)'
+              ],
+              borderColor: '#0f172a',
+              borderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { color: '#cbd5e1', font: { family: 'Inter', size: 11 } }
+            }
+          }
+        }
+      });
+    }
+
+    function setInspectorSubTab(tabName) {
+      activeInspectorTab = tabName;
+      document.getElementById('inspTabOverview').classList.toggle('hidden', tabName !== 'overview');
+      document.getElementById('inspTabPayload').classList.toggle('hidden', tabName !== 'payload');
+      document.getElementById('inspTabLifecycle').classList.toggle('hidden', tabName !== 'lifecycle');
+
+      document.querySelectorAll('.insp-tab-btn').forEach(btn => {
+        const isCurrent = btn.getAttribute('data-insptab') === tabName;
+        btn.className = isCurrent
+          ? 'insp-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition'
+          : 'insp-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 text-slate-300 hover:text-white transition';
+      });
+    }
+
+    function setMainViewTab(viewName) {
+      activeMainTab = viewName;
+      const feedSec = document.getElementById('viewFeedSection');
+      const anaSec = document.getElementById('viewAnalyticsSection');
+      const btnFeed = document.getElementById('tabBtnFeed');
+      const btnAna = document.getElementById('tabBtnAnalytics');
+
+      if (viewName === 'feed') {
+        feedSec.classList.remove('hidden');
+        anaSec.classList.add('hidden');
+        btnFeed.className = 'px-3 py-1.5 rounded-md text-xs font-medium transition bg-indigo-600 text-white shadow';
+        btnAna.className = 'px-3 py-1.5 rounded-md text-xs font-medium transition text-slate-400 hover:text-slate-200';
+      } else {
+        feedSec.classList.add('hidden');
+        anaSec.classList.remove('hidden');
+        btnAna.className = 'px-3 py-1.5 rounded-md text-xs font-medium transition bg-indigo-600 text-white shadow';
+        btnFeed.className = 'px-3 py-1.5 rounded-md text-xs font-medium transition text-slate-400 hover:text-slate-200';
+        renderAnalytics(getFilteredNotifications());
+      }
+    }
+
+    // Event Wiring on DOM Ready
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      renderAll();
+
+      // View switcher
+      document.getElementById('tabBtnFeed').addEventListener('click', () => setMainViewTab('feed'));
+      document.getElementById('tabBtnAnalytics').addEventListener('click', () => setMainViewTab('analytics'));
+
+      // Inspector sub-tabs
+      document.querySelectorAll('.insp-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          setInspectorSubTab(btn.getAttribute('data-insptab'));
+        });
+      });
+
+      // Filters & Search
+      document.getElementById('searchInput').addEventListener('input', () => renderAll());
+      document.getElementById('btnClearSearch').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        renderAll();
+      });
+      document.getElementById('filterApp').addEventListener('change', () => renderAll());
+      document.getElementById('filterStatus').addEventListener('change', () => renderAll());
+      document.getElementById('filterPriority').addEventListener('change', () => renderAll());
+      document.getElementById('filterTimeframe').addEventListener('change', () => renderAll());
+      document.getElementById('sortOrder').addEventListener('change', () => renderAll());
+
+      // Quick filter chips
+      document.querySelectorAll('.quick-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          quickFilterMode = chip.getAttribute('data-quick');
+          document.querySelectorAll('.quick-chip').forEach(c => {
+            const active = c.getAttribute('data-quick') === quickFilterMode;
+            c.className = active
+              ? 'quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-indigo-600 text-white transition'
+              : 'quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+          });
+          renderAll();
+        });
+      });
+
+      // Bulk toolbar buttons
+      document.getElementById('btnMarkAllRead').addEventListener('click', () => {
+        let count = 0;
+        notifications.forEach(n => {
+          if (n.status === 'Unread') {
+            n.status = 'Read';
+            count++;
+          }
+        });
+        saveState();
+        renderAll();
+        showToast('Marked All as Read', `${count} unread notifications updated to Read status.`, 'border-sky-500');
+      });
+
+      document.getElementById('btnClearDismissed').addEventListener('click', () => {
+        const before = notifications.length;
+        notifications = notifications.filter(n => n.status !== 'Dismissed');
+        const removed = before - notifications.length;
+        saveState();
+        renderAll();
+        showToast('Purged Dismissed Logs', `Removed ${removed} dismissed notification records.`, 'border-amber-500');
+      });
+
+      document.getElementById('btnResetFilters').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('filterApp').value = 'ALL';
+        document.getElementById('filterStatus').value = 'ALL';
+        document.getElementById('filterPriority').value = 'ALL';
+        document.getElementById('filterTimeframe').value = '365D';
+        document.getElementById('sortOrder').value = 'NEWEST';
+        quickFilterMode = 'ALL';
+        document.querySelectorAll('.quick-chip').forEach(c => {
+          const active = c.getAttribute('data-quick') === 'ALL';
+          c.className = active
+            ? 'quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-indigo-600 text-white transition'
+            : 'quick-chip px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+        });
+        renderAll();
+      });
+
+
+      // Inspector actions
+      document.getElementById('btnInspToggleStar').addEventListener('click', () => {
+        const item = notifications.find(n => n.id === selectedId);
+        if (!item) return;
+        item.starred = !item.starred;
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('btnInspToggleRead').addEventListener('click', () => {
+        const item = notifications.find(n => n.id === selectedId);
+        if (!item) return;
+        item.status = item.status === 'Unread' ? 'Read' : 'Unread';
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('btnInspSnooze').addEventListener('click', () => {
+        const item = notifications.find(n => n.id === selectedId);
+        if (!item) return;
+        item.status = 'Snoozed';
+        item.lastUserAction = 'Snoozed for 1h via Inspector';
+        item.lifecycle = item.lifecycle || [];
+        item.lifecycle.push({
+          step: 'Snoozed for 60 Minutes',
+          offsetMs: Math.max(100, Date.now() - item.timestamp),
+          detail: 'NotificationListenerService.snoozeNotification(id, 3600000)'
+        });
+        saveState();
+        renderAll();
+        showToast('Notification Snoozed', `${item.title} snoozed for 1 hour.`, 'border-violet-500');
+      });
+
+      document.getElementById('btnInspReplay').addEventListener('click', () => {
+        const item = notifications.find(n => n.id === selectedId);
+        if (!item) return;
+        showToast(`[${item.app}] ${item.title}`, item.body, 'border-indigo-500');
+      });
+
+      document.getElementById('btnInspDelete').addEventListener('click', () => {
+        if (!selectedId) return;
+        const target = notifications.find(n => n.id === selectedId);
+        if (window.AndroidBridge && typeof window.AndroidBridge.deleteNotification === 'function') {
+          window.AndroidBridge.deleteNotification(selectedId);
+        }
+        notifications = notifications.filter(n => n.id !== selectedId);
+        saveState();
+        renderAll();
+        if (target) {
+          showToast('Notification Deleted', `Removed ${target.id} (${target.app}) from history.`, 'border-rose-500');
+        }
+      });
+
+      document.getElementById('btnCopyMessageText').addEventListener('click', () => {
+        const item = notifications.find(n => n.id === selectedId);
+        if (!item) return;
+        const text = `${item.title}\n${item.subtitle}\n\n${item.body}\n\n${item.expandedText || ''}`;
+        copyTextToClipboard(text, 'Notification text');
+      });
+
+      document.getElementById('btnCopyJson').addEventListener('click', () => {
+        const item = notifications.find(n => n.id === selectedId);
+        if (!item) return;
+        const jsonStr = JSON.stringify(buildRawPayloadObject(item), null, 2);
+        copyTextToClipboard(jsonStr, 'Raw JSON payload');
+      });
+
+      function updateAutoCaptureUI() {
+        const dot = document.getElementById('autoStreamDot');
+        const label = document.getElementById('autoStreamBtnLabel');
+        const btn = document.getElementById('btnToggleAutoStream');
+        const liveDot = document.getElementById('liveIndicatorDot');
+        const liveText = document.getElementById('liveIndicatorText');
+        if (autoCaptureEnabled) {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-ping';
+          label.textContent = 'Continuous Capture: ON';
+          btn.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition';
+          liveDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
+          liveText.textContent = '365-Day Continuous Log Active';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+          label.textContent = 'Continuous Capture: PAUSED';
+          btn.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition';
+          liveDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
+          liveText.textContent = '365-Day Archive (Capture Paused)';
+        }
+      }
+
+      function startContinuous365Daemon() {
+        if (autoCaptureIntervalId) clearInterval(autoCaptureIntervalId);
+        if (retentionSweepIntervalId) clearInterval(retentionSweepIntervalId);
+
+        // Periodic 365-day retention sweep & relative timestamp refresh every 15s
+        retentionSweepIntervalId = setInterval(() => {
+          enforce365DayRetention();
+          saveState();
+          const hb = document.getElementById('lastHeartbeatLabel');
+          if (hb) {
+            hb.textContent = `Last 365d sync: ${new Date().toTimeString().slice(0, 8)}`;
+          }
+          renderAll();
+        }, 15000);
+
+      }
+
+      document.getElementById('btnToggleAutoStream').addEventListener('click', () => {
+        autoCaptureEnabled = !autoCaptureEnabled;
+        updateAutoCaptureUI();
+        showToast(
+          autoCaptureEnabled ? 'Continuous 365-Day Capture Resumed' : 'Continuous Capture Paused',
+          autoCaptureEnabled
+            ? 'New notifications are continuously logged and retained for 365 days.'
+            : 'Background stream paused. Existing 365-day history remains protected.',
+          autoCaptureEnabled ? 'border-emerald-500' : 'border-amber-500'
+        );
+      });
+
+      updateAutoCaptureUI();
+      startContinuous365Daemon();
+
+      // Configure Dynamic PWA Web App Manifest & Install Handlers
+      let deferredPwaPrompt = null;
+      try {
+        const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#d946ef"/></linearGradient></defs><rect width="192" height="192" rx="42" fill="url(#g)"/><path d="M96 42c-22 0-40 18-40 40v26l-12 14v8h104v-8l-12-14V82c0-22-18-40-40-40zm0 108c8.8 0 16-7.2 16-16H80c0 8.8 7.2 16 16 16z" fill="#fff"/></svg>`;
+        const iconDataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(iconSvg);
+        const manifestObj = {
+          name: 'NotifyTrace — 365-Day Notification History',
+          short_name: 'NotifyTrace',
+          description: 'Continuous 365-Day Notification History & Payload Inspector',
+          start_url: '.',
+          display: 'standalone',
+          background_color: '#020617',
+          theme_color: '#020617',
+          icons: [
+            { src: iconDataUri, sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' },
+            { src: iconDataUri, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+          ]
+        };
+        const manifestLink = document.getElementById('pwaManifestLink');
+        if (manifestLink) {
+          manifestLink.setAttribute('href', 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestObj)));
+        }
+      } catch (e) {
+        // Ignore manifest errors in restricted webviews
+      }
+
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPwaPrompt = e;
+        const statusTxt = document.getElementById('pwaInstallStatusText');
+        if (statusTxt) {
+          statusTxt.textContent = 'Native 1-Tap Browser Install is ready for your device! Click "1-Tap Browser Install" below.';
+        }
+      });
+
+      const installModal = document.getElementById('installPhoneModal');
+      document.getElementById('btnInstallPhone').addEventListener('click', () => {
+        installModal.classList.remove('hidden');
+      });
+      document.getElementById('btnCloseInstallModal').addEventListener('click', () => {
+        installModal.classList.add('hidden');
+      });
+      document.getElementById('btnDoneInstallModal').addEventListener('click', () => {
+        installModal.classList.add('hidden');
+      });
+
+      document.querySelectorAll('.plat-guide-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const plat = btn.getAttribute('data-plat');
+          document.getElementById('guideAndroid').classList.toggle('hidden', plat !== 'android');
+          document.getElementById('guideIos').classList.toggle('hidden', plat !== 'ios');
+          document.querySelectorAll('.plat-guide-btn').forEach(b => {
+            const active = b.getAttribute('data-plat') === plat;
+            b.className = active
+              ? 'plat-guide-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition'
+              : 'plat-guide-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:text-white transition';
+          });
+        });
+      });
+
+      document.getElementById('btnTriggerNativePwa').addEventListener('click', async () => {
+        if (deferredPwaPrompt) {
+          deferredPwaPrompt.prompt();
+          await deferredPwaPrompt.userChoice;
+          deferredPwaPrompt = null;
+          showToast('Install Prompt Opened', 'Follow your phone browser prompt to finish adding NotifyTrace.', 'border-emerald-500');
+        } else {
+          showToast(
+            'Use Browser Menu or Save App File',
+            'Inside this preview window, click "Save Standalone Mobile App" to open it in Chrome/Safari on your phone and tap "Add to Home Screen".',
+            'border-indigo-500'
+          );
+        }
+      });
+
+      // Native Android APK Bridge Integration (window.AndroidBridge)
+      window.onNativeNotificationPosted = function(notifJsonStr, silent) {
+        try {
+          const raw = typeof notifJsonStr === 'string' ? JSON.parse(notifJsonStr) : notifJsonStr;
+          if (NATIVE && !silent && raw.packageName && !nativeIcons[raw.packageName]) {
+            try { nativeIcons = JSON.parse(window.AndroidBridge.getAppIcons() || '{}'); } catch (e) {}
+          }
+          const incoming = {
+            id: raw.id || ('sbn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
+            app: raw.appName || raw.packageName || 'Android App',
+            packageName: raw.packageName || 'android.app',
+            appIconBase64: raw.appIconBase64 || nativeIcons[raw.packageName] || null,
+            channelId: raw.channelId || 'android_channel',
+            channelName: raw.channelName || 'OS Notification Channel',
+            category: raw.category || 'status_bar',
+            groupKey: raw.groupKey || raw.packageName || 'grp_android',
+            priority: raw.priority || 'High',
+            status: 'Unread',
+            starred: false,
+            isRealPhone: true,
+            timestamp: Number(raw.timestamp) || Date.now(),
+            latencyMs: Number(raw.latencyMs) || 12,
+            device: raw.device || 'Android Device (NotificationListenerService)',
+            sound: raw.sound || 'system_default',
+            vibration: raw.vibration || 'default',
+            visibility: raw.visibility || 'PRIVATE',
+            payloadBytes: JSON.stringify(raw).length,
+            ttlSeconds: 31536000,
+            title: raw.title || '(No Title)',
+            subtitle: `${raw.packageName || 'android'} · Real Phone Notification`,
+            body: raw.text || raw.body || '',
+            expandedText: raw.bigText || raw.subText || raw.text || 'Captured via Android NotificationListenerService.',
+            deepLink: `intent://${raw.packageName || 'app'}/#Intent;end`,
+            actions: Array.isArray(raw.actions) ? raw.actions : ['Open App', 'Dismiss'],
+            lastUserAction: null,
+            lifecycle: [
+              { step: 'onNotificationPosted() Triggered', offsetMs: 0, detail: `StatusBarNotification key=${raw.key || raw.id}` },
+              { step: 'Saved to 365-Day Device SQLite/Storage', offsetMs: 12, detail: 'Real phone notification archived' }
+            ]
+          };
+          if (silent) return incoming;
+          notifications = notifications.filter(n => n.id !== incoming.id);
+          notifications.unshift(incoming);
+          selectedId = incoming.id;
+          saveState();
+          renderAll();
+          showToast(`[${incoming.app}] ${incoming.title}`, incoming.body, 'border-emerald-500', incoming.app);
+        } catch (err) {
+          // Ignore malformed bridge payload
+        }
+      };
+
+      // Native Android APK: load the real history stored by the listener service
+      function showAccessBanner(enabled) {
+        let b = document.getElementById('nativeAccessBanner');
+        if (enabled) { if (b) b.parentNode.removeChild(b); return; }
+        if (!b) {
+          b = document.createElement('div');
+          b.id = 'nativeAccessBanner';
+          b.className = 'm-3 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs space-y-2';
+          b.innerHTML = '<div class="font-semibold">Notification access is OFF - nothing can be captured yet.</div>' +
+            '<div>1) Tap <b>Open Notification Access</b> and switch NotifyTrace ON.<br>' +
+            '2) If the switch is greyed out or says "Restricted setting": tap <b>Open App Info</b>, press the 3-dot menu (top right) and choose <b>Allow restricted settings</b>, then repeat step 1.</div>' +
+            '<div class="flex gap-2"><button id="nbOpenAccess" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold">Open Notification Access</button>' +
+            '<button id="nbOpenInfo" class="px-3 py-1.5 rounded-lg bg-slate-700 text-white font-semibold">Open App Info</button></div>';
+          document.body.insertBefore(b, document.body.children[1] || null);
+          document.getElementById('nbOpenAccess').onclick = () => window.AndroidBridge.openNotificationAccessSettings();
+          document.getElementById('nbOpenInfo').onclick = () => window.AndroidBridge.openAppInfo();
+        }
+      }
+
+      window.refreshFromNative = function() {
+        if (!NATIVE) return;
+        try {
+          const enabled = !!window.AndroidBridge.isServiceEnabled();
+          showAccessBanner(enabled);
+          try { nativeIcons = JSON.parse(window.AndroidBridge.getAppIcons() || '{}'); } catch (e) { nativeIcons = {}; }
+          const arr = JSON.parse(window.AndroidBridge.getHistoricalNotifications() || '[]');
+          const old = {};
+          notifications.forEach(n => { old[n.id] = n; });
+          const fresh = [];
+          for (const item of arr) {
+            const n = window.onNativeNotificationPosted(item, true);
+            if (!n) continue;
+            const prev = old[n.id];
+            if (prev) { n.status = prev.status; n.starred = prev.starred; n.lastUserAction = prev.lastUserAction; }
+            fresh.push(n);
+          }
+          fresh.sort((a, b) => b.timestamp - a.timestamp);
+          notifications = fresh;
+          if (!notifications.some(n => n.id === selectedId)) selectedId = notifications.length ? notifications[0].id : null;
+          const liveText = document.getElementById('liveIndicatorText');
+          if (liveText) liveText.textContent = enabled
+            ? 'Capturing live - ' + notifications.length + ' saved'
+            : 'Notification access OFF';
+          renderAll();
+        } catch (e) {
+          showToast('Load error', String((e && e.message) || e), 'border-rose-500');
+        }
+      };
+
+      if (NATIVE) {
+        autoCaptureEnabled = false;
+        updateAutoCaptureUI();
+        const statusTxt = document.getElementById('pwaInstallStatusText');
+        if (statusTxt) statusTxt.textContent = 'Connected to the phone. Showing only real notifications captured on this device.';
+        window.refreshFromNative();
+      }
+
+      // Hook Browser Web Notification API so any web notification created on the device/browser is logged
+      try {
+        if ('Notification' in window) {
+          const OriginalNotification = window.Notification;
+          const ProxiedNotification = function(title, options = {}) {
+            const instance = new OriginalNotification(title, options);
+            window.onNativeNotificationPosted({
+              id: 'webnotif_' + Date.now(),
+              appName: document.title || 'Web Browser',
+              packageName: location.hostname || 'browser.web.notification',
+              channelId: options.tag || 'web_push_api',
+              title: title,
+              text: options.body || '',
+              bigText: JSON.stringify(options.data || {}, null, 2),
+              timestamp: Date.now(),
+              device: navigator.userAgent.slice(0, 48)
+            });
+            return instance;
+          };
+          ProxiedNotification.requestPermission = OriginalNotification.requestPermission.bind(OriginalNotification);
+          Object.defineProperty(ProxiedNotification, 'permission', {
+            get: () => OriginalNotification.permission
+          });
+          window.Notification = ProxiedNotification;
+        }
+      } catch (e) {
+        // Ignore proxy restriction
+      }
+
+      document.getElementById('btnOpenAndroidNotifSettings').addEventListener('click', () => {
+        if (window.AndroidBridge && typeof window.AndroidBridge.openNotificationAccessSettings === 'function') {
+          window.AndroidBridge.openNotificationAccessSettings();
+        } else {
+          showToast(
+            'Requires Native Android APK',
+            'Build and install the Android APK project from chat to open Android Settings -> Notification Access.',
+            'border-indigo-500'
+          );
+        }
+      });
+
+      // Parse & Import Real Phone Dump (adb shell dumpsys notification OR JSON array)
+      document.getElementById('btnImportPhoneDump').addEventListener('click', () => {
+        const rawText = document.getElementById('phoneDumpInput').value.trim();
+        if (!rawText) {
+          showToast('Empty Input', 'Paste your phone notification JSON or adb dumpsys notification text first.', 'border-amber-500');
+          return;
+        }
+
+        let importedCount = 0;
+        // Try JSON format first
+        if (rawText.startsWith('[') || rawText.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(rawText);
+            const arr = Array.isArray(parsed) ? parsed : [parsed];
+            arr.forEach(item => {
+              window.onNativeNotificationPosted(item);
+              importedCount++;
+            });
+            document.getElementById('phoneDumpInput').value = '';
+            installModal.classList.add('hidden');
+            showToast('Phone Notifications Imported', `Imported ${importedCount} real notification record(s).`, 'border-emerald-500');
+            return;
+          } catch (e) {
+            // Fall through to dumpsys text parser
+          }
+        }
+
+        // Parse Android `dumpsys notification` blocks (NotificationRecord / pkg= / android.title= / android.text=)
+        const blocks = rawText.split(/NotificationRecord\(/g).slice(1);
+        if (blocks.length > 0) {
+          blocks.forEach((blk, idx) => {
+            const pkgMatch = blk.match(/pkg=([^\s)]+)/);
+            const titleMatch = blk.match(/android\.title=(?:String\s*\()?([^\n\r]+)/);
+            const textMatch = blk.match(/android\.text=(?:String\s*\()?([^\n\r]+)/);
+            const bigTextMatch = blk.match(/android\.bigText=(?:String\s*\()?([^\n\r]+)/);
+            const channelMatch = blk.match(/channel=([^\s\n\r]+)/);
+            const pkg = pkgMatch ? pkgMatch[1].trim() : 'android.app';
+            const appLabel = pkg.split('.').pop() || pkg;
+            const formattedApp = appLabel.charAt(0).toUpperCase() + appLabel.slice(1);
+            window.onNativeNotificationPosted({
+              id: 'dumpsys_' + Date.now() + '_' + idx,
+              appName: formattedApp,
+              packageName: pkg,
+              channelId: channelMatch ? channelMatch[1] : 'dumpsys_channel',
+              title: titleMatch ? titleMatch[1].replace(/\)$/, '').trim() : `Notification from ${pkg}`,
+              text: textMatch ? textMatch[1].replace(/\)$/, '').trim() : 'Imported from Android dumpsys notification',
+              bigText: bigTextMatch ? bigTextMatch[1].replace(/\)$/, '').trim() : blk.slice(0, 400),
+              timestamp: Date.now() - idx * 60000
+            });
+            importedCount++;
+          });
+        } else {
+          // Treat each non-empty line as a quick notification entry
+          rawText.split('\n').map(l => l.trim()).filter(Boolean).forEach((line, idx) => {
+            window.onNativeNotificationPosted({
+              id: 'line_' + Date.now() + '_' + idx,
+              appName: 'Phone Log',
+              packageName: 'android.imported.log',
+              channelId: 'manual_import',
+              title: line.slice(0, 72),
+              text: line,
+              bigText: line,
+              timestamp: Date.now() - idx * 30000
+            });
+            importedCount++;
+          });
+        }
+
+        document.getElementById('phoneDumpInput').value = '';
+        installModal.classList.add('hidden');
+        showToast('Phone Notifications Imported', `Parsed and imported ${importedCount} notification(s) into the 365-day log.`, 'border-emerald-500');
+      });
+
+      document.getElementById('btnDownloadMobileApp').addEventListener('click', () => {
+        const fullHtml = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'NotifyTrace_Mobile_App.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Mobile App File Saved', 'Open NotifyTrace_Mobile_App.html on your phone browser and select "Add to Home Screen".', 'border-emerald-500');
+      });
+    });
+  </script>
+</body>
+</html>

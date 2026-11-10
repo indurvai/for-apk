@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">NotifyTrace</string>
+    <string name="listener_service_label">NotifyTrace 365-Day Notification Logger</string>
+    <string name="status_listener_active">Listener Active</string>
+    <string name="status_listener_off">Access Needed</string>
+    <string name="action_test_push">Test OS Push</string>
+    <string name="action_grant_access">Notification Access</string>
+    <string name="action_device_setup">APK Setup &amp; Tools</string>
+    <string name="action_share_export">Export JSON</string>
+    <string name="sheet_title_setup">Native Android Notification Capture</string>
+    <string name="sheet_subtitle_setup">365-Day On-Device Rolling Archive &amp; Status Bar Listener</string>
+    <string name="cd_app_logo">NotifyTrace logo</string>
+    <string name="cd_test_push">Send a real Android OS test notification</string>
+    <string name="cd_open_settings">Open Android Notification Listener Settings</string>
+    <string name="cd_open_setup">Open Native APK Setup and Export Tools</string>
+</resources>
